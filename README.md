@@ -1,38 +1,28 @@
-# Lao Lotto Bot
+# Lao Lotto Bot 🎲
 
-Telegram Bot ສຳລັບທາຍເລກຫວຍລາວ (Node.js + MongoDB)
-
-## 📌 Features
-- ຜູ້ຫຼິ້ນທາຍເລກ 2, 3 ຫຼື 4 ຕົວ ດ້ວຍປຸ່ມຢືນຢັນ
-- ປິດຮັບອັດຕະໂນມັດ 20:25
-- ແຈ້ງເຕືອນ Admin 20:30
-- ປະກາດຜົນອັດຕະໂນມັດ 21:00
-- ລະບົບ Admin 2 ລະດັບ (Super Admin, Editor Admin)
-- ປະກາດຜົນພ້ອມແທັກຜູ້ຖືກລາງວັນ
-
-## 📂 Project Structure
-```
-/lao-lotto-bot
-  ├── index.js
-  ├── package.json
-  ├── package-lock.json
-  └── README.md
-```
-
-## ⚙️ Installation
+## 📦 Setup
+1. ติดตั้ง dependencies  
 ```bash
 npm install
 ```
-
-## ▶️ Run
+2. ค่า `.env` ใส่ไว้ให้แล้ว ใช้งานจริงได้เลย  
+3. รันบอท  
 ```bash
-npm start       # run normally
-npm run dev     # run with nodemon (auto-reload)
+npm start
 ```
 
-## 🚀 Deploy
-- Deploy ได้ที่ Render / Railway / VPS / Heroku
-- ตั้งค่า ENV:
-  - `BOT_TOKEN` = Telegram Bot Token
-  - `MONGO_URI` = MongoDB Connection String
-  - `TARGET_GROUP_ID` = ID ກຸ່ມ Telegram
+## 🚀 Deploy on Render
+- ใช้ Webhook mode → ไม่ conflict  
+- Health check endpoint: `/`  
+
+## ⏰ Schedule
+- ปิดรับ: 20:25  
+- แจ้งเตือน admin: 20:30  
+- ประกาศผล: 21:00  
+
+## 🛡 Admin
+- Super Admin: reset ได้ + กรอกผลได้  
+- Admin: กรอกผลได้เท่านั้น  
+
+## 🔄 กันบอทหลับ
+- ใช้ UptimeRobot ชี้ไปที่ `https://lao-lotto-bot.onrender.com/`  
