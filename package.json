@@ -1,7 +1,7 @@
 {
   "name": "lao-lotto-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for Lao lottery game",
+  "description": "Telegram bot for Lao lottery game with MongoDB and cron jobs",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -23,7 +23,9 @@
     "telegram",
     "lottery",
     "bot",
-    "lao"
+    "lao",
+    "mongoose",
+    "cron"
   ],
   "author": "Your Name",
   "license": "MIT"
