@@ -18,9 +18,9 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 /* ================= Schema ================= */
 const BetSchema = new mongoose.Schema({
   userId: String,
-  name: String,   // ✅ เก็บชื่อผู้เล่น
+  name: String,
   number: String,
-  pos: String,    // top / bottom
+  pos: String, // top / bottom
   round: String,
   createdAt: { type: Date, default: Date.now }
 });
@@ -58,7 +58,6 @@ async function fetchLatestResult() {
     const res = await axios.get("https://laosdev.net/lotto");
     const $ = cheerio.load(res.data);
 
-    // ⚠️ selector ต้องเช็กจากโครงสร้างจริงของเว็บ laosdev.net
     const lastDate = $(".lotto-date").text().trim() || getLastLotteryDate();
     const digit4 = $(".lotto-4digit").text().trim() || "--";
     const digit3 = $(".lotto-3digit").text().trim() || "--";
@@ -75,6 +74,25 @@ async function fetchLatestResult() {
       digit2bottom: "--",
       date: getLastLotteryDate()
     };
+  }
+}
+
+/* ================= Fetch Previous Result ================= */
+async function fetchPreviousResult() {
+  try {
+    const res = await axios.get("https://laosdev.net/lotto");
+    const $ = cheerio.load(res.data);
+
+    const row = $("table tbody tr").first(); // แถวแรกในตาราง
+    const date = row.find("td").eq(0).text().trim();
+    const digit4 = row.find("td").eq(1).text().trim();
+    const digit3 = row.find("td").eq(2).text().trim();
+    const digit2bottom = row.find("td").eq(3).text().trim();
+
+    return { date, digit4, digit3, digit2bottom };
+  } catch (err) {
+    console.error("❌ Fetch previous result error:", err.message);
+    return { date: "--", digit4: "--", digit3: "--", digit2bottom: "--" };
   }
 }
 
@@ -119,6 +137,7 @@ bot.onText(/\/start/, (msg) => {
         keyboard: [
           [{ text: "🎲 ເລີ່ມເກມທາຍເລກ" }],
           [{ text: "🔎 ກວດຜົນຫວຍ" }],
+          [{ text: "📅 ຜົນງວດທີ່ຜ່ານມາ" }],
           ...(isAdmin ? [[{ text: "♻️ Reset รอบ" }]] : [])
         ],
         resize_keyboard: true
@@ -132,7 +151,7 @@ bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  console.log("📩 Message received:", { chatId, text });
+  if (!text) return;
 
   // Start new round
   if (text === "🎲 ເລີ່ມເກມທາຍເລກ") {
@@ -160,7 +179,6 @@ bot.on('message', async (msg) => {
   // Check result
   if (text === "🔎 ກວດຜົນຫວຍ") {
     const res = await fetchLatestResult();
-
     const winners4 = await Bet.find({ number: res.digit4, round: res.date });
     const winners3 = await Bet.find({ number: res.digit3, round: res.date });
     const winners2top = await Bet.find({ number: res.digit2top, pos: "top", round: res.date });
@@ -180,6 +198,19 @@ bot.on('message', async (msg) => {
       "═════════════════════";
 
     bot.sendMessage(chatId, msg);
+    return;
+  }
+
+  // Previous result
+  if (text === "📅 ຜົນງວດທີ່ຜ່ານມາ") {
+    const prev = await fetchPreviousResult();
+    bot.sendMessage(chatId,
+      "📅 ຜົນງວດທີ່ຜ່ານມາ:\n" +
+      "👑 4 ຕົວ: " + prev.digit4 + "\n" +
+      "🥇 3 ຕົວທ້າຍ: " + prev.digit3 + "\n" +
+      "⬇️ 2 ຕົວລຸ່ມ: " + prev.digit2bottom + "\n" +
+      "📅 ວັນທີ: " + prev.date
+    );
     return;
   }
 
