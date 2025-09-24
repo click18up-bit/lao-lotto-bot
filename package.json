@@ -1,17 +1,19 @@
 {
   "name": "lao-lotto-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for Lao Lottery Game",
+  "description": "Telegram bot for Lao Lotto game with MongoDB",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^7.6.0",
+    "express": "^4.19.2",
+    "mongoose": "^7.6.3",
     "node-telegram-bot-api": "^0.66.0"
   },
   "engines": {
     "node": ">=18.x"
-  }
+  },
+  "author": "Top",
+  "license": "MIT"
 }
