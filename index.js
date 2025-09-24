@@ -127,7 +127,7 @@ async function announceResult() {
 }
 
 /* ========== Cron: Mon/Wed/Fri 20:30 server time ========== */
-cron.schedule("30 20 * * 1,3,5", () => announceResult());
+cron.schedule("30 13 * * 1,3,5", () => announceResult());
 
 /* ========== Keyboards ========== */
 function getKeyboard(isAdmin) {
