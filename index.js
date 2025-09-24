@@ -8,7 +8,6 @@ const PORT = process.env.PORT || 3000;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGO_URI = process.env.MONGO_URI;
-const TARGET_GROUP_ID = process.env.TARGET_GROUP_ID;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
@@ -16,7 +15,7 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const BetSchema = new mongoose.Schema({
   userId: String,
   number: String,
-  pos: String,   // top/bottom (ถ้าเลือก 2 หลัก)
+  pos: String,   // top/bottom ถ้าเลือก 2 หลัก
   round: String,
   createdAt: { type: Date, default: Date.now }
 });
@@ -30,31 +29,39 @@ mongoose.connect(MONGO_URI)
 // ===== หาวันหวยออกล่าสุด (จันทร์/พุธ/ศุกร์) =====
 function getLastLotteryDate() {
   const today = new Date();
-  const lottoDays = [1, 3, 5]; // Mon, Wed, Fri
+  const lottoDays = [1, 3, 5]; // Mon=1, Wed=3, Fri=5
   let d = new Date(today);
-  while (!lottoDays.includes(d.getDay()) || d > today) {
-    d.setDate(d.getDate() - 1);
+
+  // ถ้าวันนี้ไม่ใช่วันหวย หรือยังไม่ถึงเวลา 20:30 → ถอยไปวันหวยล่าสุด
+  if (
+    !lottoDays.includes(d.getDay()) ||
+    (today.getHours() < 20 || (today.getHours() === 20 && today.getMinutes() < 30))
+  ) {
+    do {
+      d.setDate(d.getDate() - 1);
+    } while (!lottoDays.includes(d.getDay()));
   }
+
   return d.toISOString().split("T")[0];
 }
 
-// ===== Mock ดึงผลหวย (แก้เป็น API จริงได้) =====
+// ===== ฟังก์ชันดึงผลหวย (mock — คุณปรับไปดึงจริงจาก API ได้) =====
 async function fetchLatestResult() {
-  const d4 = "2025"; // mock result
+  const d4 = "2025"; // mock
   return {
     digit4: d4,
     digit3: d4.slice(1),
     digit2top: d4.slice(2),
-    digit2bottom: d4.slice(0, 2),
-    date: getLastLotteryDate()
+    digit2bottom: d4.slice(0, 2)
   };
 }
 
-// ===== ประกาศผลอัตโนมัติ =====
+// ===== ฟังก์ชันประกาศผลอัตโนมัติ =====
 async function announceResult() {
   const res = await fetchLatestResult();
+  const lastDate = getLastLotteryDate();
   let msg =
-    "🎉 ຜົນຫວຍລາວ ງວດ " + res.date + "\n" +
+    "🎉 ຜົນຫວຍລາວ ງວດ " + lastDate + "\n" +
     "═════════════════════\n" +
     "🏆 4 ຕົວ: " + res.digit4 + "\n" +
     "🥇 3 ຕົວທ້າຍ: " + res.digit3 + "\n" +
@@ -62,10 +69,10 @@ async function announceResult() {
     "🥈 2 ຕົວລຸ່ມ: " + res.digit2bottom + "\n" +
     "═════════════════════\n\n" +
     "🎊 ຂອບໃຈທຸກຄົນທີ່ຮ່ວມສົນຸກ!";
-  bot.sendMessage(TARGET_GROUP_ID, msg);
+  bot.sendMessage(process.env.TARGET_GROUP_ID, msg);
 }
 
-// ตั้งเวลา จันทร์/พุธ/ศุกร์ 20:30
+// ตั้งเวลาให้ประกาศผลทุก จันทร์/พุธ/ศุกร์ 20:30
 cron.schedule("30 20 * * 1,3,5", () => {
   announceResult();
 });
@@ -91,7 +98,7 @@ bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // เริ่มทายเลข
+  // 🎲 เริ่มทายเลข
   if (text === "🎲 ເລີ່ມເກມທາຍເລກ") {
     await Bet.deleteMany({ round: getLastLotteryDate() }); // reset รอบใหม่
     const roundDate = getLastLotteryDate();
@@ -115,21 +122,22 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // กดปุ่มตรวจผล
+  // 🔎 ตรวจผลหวย
   if (text === "🔎 ກວດຜົນຫວຍ") {
     const res = await fetchLatestResult();
+    const lastDate = getLastLotteryDate();
     bot.sendMessage(chatId,
       "✅ ຜົນຫວຍລ່າສຸດ:\n" +
       "🏆 4 ຕົວ: " + res.digit4 + "\n" +
       "🥇 3 ຕົວທ້າຍ: " + res.digit3 + "\n" +
       "🥈 2 ຕົວເທິງ: " + res.digit2top + "\n" +
       "🥈 2 ຕົວລຸ່ມ: " + res.digit2bottom + "\n" +
-      "📅 ວັນທີ: " + res.date
+      "📅 ວັນທີ: " + lastDate
     );
     return;
   }
 
-  // ผู้ใช้พิมพ์เลข
+  // 📝 ผู้ใช้พิมพ์เลข 2–4 หลัก
   if (/^\d{2,4}$/.test(text)) {
     const round = getLastLotteryDate();
     const exist = await Bet.findOne({ userId: chatId, round });
@@ -137,8 +145,48 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, "⚠️ ທ່ານເຄີຍທາຍແລ້ວໃນຮອບນີ້");
       return;
     }
-    await Bet.create({ userId: chatId, number: text, round });
-    bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${text} ຂອງທ່ານແລ້ວ`);
+
+    if (text.length === 2) {
+      // แสดงปุ่มเลือกบน/ล่าง
+      bot.sendMessage(chatId,
+        `📌 ເລືອກຕຳແໜ່ງໃຫ້ເລກ ${text}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "ເທິງ", callback_data: `bet:${text}:top` }],
+              [{ text: "ລຸ່ມ", callback_data: `bet:${text}:bottom` }]
+            ]
+          }
+        }
+      );
+    } else {
+      // 3–4 หลัก → บันทึกทันที
+      await Bet.create({ userId: chatId, number: text, round });
+      bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${text} ຂອງທ່ານແລ້ວ`);
+    }
+  }
+});
+
+// 🎯 ฟัง callback จากปุ่ม บน/ล่าง
+bot.on('callback_query', async (query) => {
+  const chatId = query.message.chat.id;
+  const data = query.data;
+
+  if (data.startsWith("bet:")) {
+    const [, number, pos] = data.split(":");
+    const round = getLastLotteryDate();
+
+    const exist = await Bet.findOne({ userId: chatId, round });
+    if (exist) {
+      bot.answerCallbackQuery(query.id, { text: "⚠️ ທ່ານເຄີຍທາຍແລ້ວໃນຮອບນີ້", show_alert: true });
+      return;
+    }
+
+    await Bet.create({ userId: chatId, number, pos, round });
+    bot.editMessageText(
+      `✅ ບັນທຶກເລກ ${number} (${pos === "top" ? "ເທິງ" : "ລຸ່ມ"}) ຂອງທ່ານແລ້ວ`,
+      { chat_id: chatId, message_id: query.message.message_id }
+    );
   }
 });
 
