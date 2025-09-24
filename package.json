@@ -1,13 +1,15 @@
 {
   "name": "lao-lotto-bot",
-  "version": "1.0.0",
-  "description": "Telegram bot for Lao lottery game with MongoDB and cron jobs",
+  "version": "1.1.0",
+  "description": "Telegram bot for Lao lottery game with MongoDB, scraping, and auto announce",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0-rc.12",
     "express": "^4.18.2",
     "mongoose": "^8.3.1",
     "node-cron": "^3.0.3",
@@ -22,11 +24,11 @@
   "keywords": [
     "telegram",
     "lottery",
-    "bot",
     "lao",
+    "scraping",
     "mongoose",
     "cron"
   ],
-  "author": "Your Name",
+  "author": "Top",
   "license": "MIT"
 }
