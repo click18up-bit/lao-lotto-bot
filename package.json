@@ -1,6 +1,7 @@
 {
   "name": "lao-lotto-bot",
   "version": "1.0.0",
+  "description": "Telegram bot for Laos lottery system",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
