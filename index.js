@@ -1,58 +1,62 @@
-require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const TelegramBot = require("node-telegram-bot-api");
-const cron = require("node-cron");
 const axios = require("axios");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== CONFIG =====
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const MONGO_URI = process.env.MONGO_URI;
-const TARGET_GROUP_ID = process.env.TARGET_GROUP_ID;
-
-// ===== BOT =====
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const BOT_TOKEN = process.env.BOT_TOKEN || "YOUR_BOT_TOKEN";
+const MONGO_URI = process.env.MONGO_URI || "YOUR_MONGO_URI";
+const SOURCE_URL = "https://laosdev.net/";
 
 // ===== MongoDB Schema =====
 const BetSchema = new mongoose.Schema({
   userId: String,
-  username: String,
-  name: String,
   number: String,
   pos: String,
-  roundKey: String,
   createdAt: { type: Date, default: Date.now }
 });
 const Bet = mongoose.model("Bet", BetSchema);
+
+// ===== Telegram Bot =====
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 // ===== Connect MongoDB =====
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
-// ===== Helper: Current Round Key =====
-function getCurrentRoundKey() {
-  const now = new Date();
-  return now.toISOString().split("T")[0]; // yyyy-mm-dd
+// ===== Helper: ວັນຫວຍອອກ =====
+function getNextLotteryDate() {
+  const today = new Date();
+  const day = today.getDay();
+  const drawDays = [1, 3, 5];
+  let next = new Date(today);
+
+  while (!drawDays.includes(next.getDay())) {
+    next.setDate(next.getDate() + 1);
+  }
+  return next.toISOString().split("T")[0];
 }
 
-// ===== Helper: Fetch Laos Result =====
+// ===== Helper: ດຶງຜົນຫວຍ =====
 async function fetchLatestFromLaosdev() {
   try {
-    const resp = await axios.get("https://laosdev.net/");
+    const resp = await axios.get(SOURCE_URL);
     const html = resp.data;
-    const m = html.match(/\b(\d{4})\b/);
-    if (!m) return null;
-    const d4 = m[1];
+
+    const match = html.match(/\b(\d{4})\b/);
+    if (!match) return null;
+
+    const d4 = match[1];
     return {
       digit4: d4,
       digit3: d4.slice(1),
       digit2top: d4.slice(2),
       digit2bottom: d4.slice(0, 2),
-      date: getCurrentRoundKey()
+      date: getNextLotteryDate()
     };
   } catch (e) {
     console.error("fetchLatestFromLaosdev error:", e);
@@ -60,25 +64,7 @@ async function fetchLatestFromLaosdev() {
   }
 }
 
-// ===== Helper: Record Guess =====
-async function recordGuess(user, guess, pos) {
-  const roundKey = getCurrentRoundKey();
-  const existing = await Bet.findOne({ userId: user.id, roundKey });
-  if (existing) {
-    return { success: false, guess: existing.number };
-  }
-  await Bet.create({
-    userId: user.id,
-    username: user.username || null,
-    name: user.first_name || "",
-    number: guess,
-    pos,
-    roundKey
-  });
-  return { success: true };
-}
-
-// ===== BOT Commands =====
+// ===== Start Command =====
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id,
     "👋 ສະບາຍດີ! ເລືອກປຸ່ມດ້ານລຸ່ມເພື່ອເລີ່ມເກມ ຫຼື ກວດຜົນ.",
@@ -94,96 +80,97 @@ bot.onText(/\/start/, (msg) => {
   );
 });
 
-// Handle Messages
+// ===== ຮັບຂໍ້ຄວາມ =====
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const text = (msg.text || "").trim();
+  const text = msg.text?.trim();
+
+  if (!text) return;
+
+  if (text.includes("ເລີ່ມເກມ")) {
+    await Bet.deleteMany({});
+
+    let rules =
+      "📜 *ກົດກາ*:\n" +
+      "1️⃣ ທາຍໄດ້ຄັ້ງດຽວຕໍ່ຮອບ\n" +
+      "2️⃣ ພິມເລກ 2 ຫຼື 4 ຫຼັກ\n" +
+      "   - ຖ້າ 2 ຫຼັກ ຈະເລືອກ *ເທິງ* ຫຼື *ລຸ່ມ*\n" +
+      "   - ຖ້າ 3-4 ຫຼັກ ບັນທຶກທັນທີ\n\n" +
+      "🏆 *ລາງວັນ*:\n" +
+      "🎖 4 ຕົວຕົງ ➝ 20,000 ເຄຣດິດ\n" +
+      "🥇 3 ຕົວທ້າຍ ➝ 5,000 ເຄຣດິດ\n" +
+      "🥈 2 ຕົວເທິງ ➝ 500 ເຄຣດິດ\n" +
+      "🥈 2 ຕົວລຸ່ມ ➝ 500 ເຄຣດິດ\n\n";
+
+    const nextDate = getNextLotteryDate();
+
+    bot.sendMessage(chatId,
+      "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!\n" +
+      rules +
+      "📅 ປະກາດຜົນ: " + nextDate + " ເວລາ 20:30\n" +
+      "🕣 ປິດຮັບ: 20:25\n" +
+      "═════════════════════\n" +
+      "🎯 ພິມເລກ 2-4 ຫຼັກ ເພື່ອຮ່ວມສົນຸກ",
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
+  if (text.includes("ກວດຜົນ")) {
+    const res = await fetchLatestFromLaosdev();
+    if (res) {
+      bot.sendMessage(chatId,
+        "✅ ຜົນຫວຍລ່າສຸດ:\n" +
+        "🏆 4 ຕົວ: " + res.digit4 + "\n" +
+        "🥇 3 ຕົວທ້າຍ: " + res.digit3 + "\n" +
+        "🥈 2 ຕົວເທິງ: " + res.digit2top + "\n" +
+        "🥈 2 ຕົວລຸ່ມ: " + res.digit2bottom + "\n" +
+        "📅 ວັນທີ: " + res.date
+      );
+    }
+    return;
+  }
 
   if (/^\d{2}$/.test(text)) {
     bot.sendMessage(chatId, "➡️ ເລືອກຕຳແໜ່ງ:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🔼 2 ຕົວເທິງ", callback_data: "TOP_" + text }],
-          [{ text: "🔽 2 ຕົວລຸ່ມ", callback_data: "BOTTOM_" + text }]
+          [{ text: "⬆️ 2 ຕົວເທິງ", callback_data: "TOP_" + text }],
+          [{ text: "⬇️ 2 ຕົວລຸ່ມ", callback_data: "BOTTOM_" + text }]
         ]
       }
     });
-  } else if (/^\d{3,4}$/.test(text)) {
-    const result = await recordGuess(msg.from, text, null);
-    if (result.success) {
-      bot.sendMessage(chatId, `✅ ບັນທຶກແລ້ວ: ${text}`);
-    } else {
-      bot.sendMessage(chatId, `⚠️ ທ່ານສາມາດທາຍໄດ້ 1 ຄັ້ງຕໍ່ຮອບ\n(ເລກທີ່ທ່ານເຄີຍທາຍ: ${result.guess})`);
+    return;
+  }
+
+  if (/^\d{3,4}$/.test(text)) {
+    const exist = await Bet.findOne({ userId: chatId });
+    if (exist) {
+      bot.sendMessage(chatId, "⚠️ ທ່ານເຄີຍທາຍແລ້ວ!");
+      return;
     }
-  } else if (text.includes("ກວດຜົນ")) {
-    const res = await fetchLatestFromLaosdev();
-    if (res) {
-      bot.sendMessage(chatId,
-        `✅ ຜົນຫວຍລ່າສຸດ:\n` +
-        `🏆 4 ຕົວ: ${res.digit4}\n` +
-        `🥇 3 ຕົວທ້າຍ: ${res.digit3}\n` +
-        `🥈 2 ຕົວເທິງ: ${res.digit2top}\n` +
-        `🥈 2 ຕົວລຸ່ມ: ${res.digit2bottom}\n` +
-        `📅 ວັນທີ: ${res.date}`
-      );
-    }
+    await Bet.create({ userId: chatId, number: text });
+    bot.sendMessage(chatId, `✅ ບັນທຶກແລ້ວ: ${text}`);
+    return;
   }
 });
 
-// Handle Callback Query
 bot.on("callback_query", async (cb) => {
   const chatId = cb.message.chat.id;
-  const from = cb.from;
-  const [pos, guess] = cb.data.split("_");
+  const choice = cb.data.split("_");
+  const pos = choice[0];
+  const number = choice[1];
 
-  const result = await recordGuess(from, guess, pos);
-  if (result.success) {
-    bot.sendMessage(chatId, `✅ ບັນທຶກ: ${guess} (${pos === "TOP" ? "🔼 2 ຕົວເທິງ" : "🔽 2 ຕົວລຸ່ມ"})`);
-  } else {
-    bot.sendMessage(chatId, `⚠️ ທ່ານສາມາດທາຍໄດ້ 1 ຄັ້ງຕໍ່ຮອບ\n(ເລກທີ່ທ່ານເຄີຍທາຍ: ${result.guess})`);
-  }
-});
-
-// ===== CRON SCHEDULE =====
-cron.schedule("30 20 * * 1,3,5", async () => {
-  const res = await fetchLatestFromLaosdev();
-  if (!res) return;
-  const guesses = await Bet.find({ roundKey: getCurrentRoundKey() });
-
-  let winners = [];
-  guesses.forEach(g => {
-    let reward = 0;
-    if (g.number === res.digit4) reward = 20000;
-    else if (g.number === res.digit3) reward = 5000;
-    else if (g.pos === "TOP" && g.number === res.digit2top) reward = 500;
-    else if (g.pos === "BOTTOM" && g.number === res.digit2bottom) reward = 500;
-
-    if (reward > 0) {
-      const mention = g.username ? "@" + g.username : g.name;
-      winners.push(`👤 ${mention} (${g.number}) ➝ +${reward} ເຄຣດິດ`);
-    }
-  });
-
-  let msg =
-    `🎉 ຜົນຫວຍລາວ ງວດ ${res.date}\n` +
-    `═════════════════════\n` +
-    `🏆 4 ຕົວ: ${res.digit4}\n` +
-    `🥇 3 ຕົວທ້າຍ: ${res.digit3}\n` +
-    `🥈 2 ຕົວເທິງ: ${res.digit2top}\n` +
-    `🥈 2 ຕົວລຸ່ມ: ${res.digit2bottom}\n` +
-    `═════════════════════\n\n`;
-
-  if (winners.length > 0) {
-    msg += "🏆 ຜູ້ຖືກລາງວັນ:\n" + winners.join("\n");
-  } else {
-    msg += "😢 ບໍ່ມີໃຜຖືກໃນງວດນີ້ 🍀";
+  const exist = await Bet.findOne({ userId: chatId });
+  if (exist) {
+    bot.sendMessage(chatId, "⚠️ ທ່ານເຄີຍທາຍແລ້ວ!");
+    return;
   }
 
-  bot.sendMessage(TARGET_GROUP_ID, msg);
-  await Bet.deleteMany({ roundKey: getCurrentRoundKey() }); // reset รอบ
+  await Bet.create({ userId: chatId, number, pos });
+  bot.sendMessage(chatId, `✅ ບັນທຶກ: ${number} (${pos === "TOP" ? "2 ຕົວເທິງ" : "2 ຕົວລຸ່ມ"})`);
 });
 
-// ===== EXPRESS Health Check =====
 app.get("/", (req, res) => {
   res.send("Lao Lotto Bot is running 🚀");
 });
