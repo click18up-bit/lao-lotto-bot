@@ -20,10 +20,9 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.sendStatus(200);
 });
 
-/* ================= Schema ================= */
+// ===== Schema =====
 const BetSchema = new mongoose.Schema({
   userId: String,
-  username: String,
   name: String,
   number: String,
   round: String,
@@ -31,116 +30,56 @@ const BetSchema = new mongoose.Schema({
 });
 const Bet = mongoose.model('Bet', BetSchema);
 
-const ResultSchema = new mongoose.Schema({
-  date: String,
-  digit4: String,
-  digit3: String,
-  digit2: String,
-  createdAt: { type: Date, default: Date.now }
-});
-const Result = mongoose.model('Result', ResultSchema);
-
-/* ================= Connect DB ================= */
+// ===== Connect DB =====
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
-/* ================= Helper ================= */
+// ===== Helper =====
 function getLotteryDate() {
   const today = new Date();
   return today.toISOString().split("T")[0];
 }
 function isSuperAdmin(id) {
-  return parseInt(id) === parseInt(SUPER_ADMIN_ID);
+  return id.toString() === (SUPER_ADMIN_ID || "").toString();
 }
 function isEditor(id) {
-  return EDITOR_IDS.map(x => x.toString()).includes(id.toString());
+  return (EDITOR_IDS || []).map(e => e.trim()).includes(id.toString());
 }
 
-/* ================= Start Command ================= */
+// ===== /start =====
 bot.onText(/\/start/, (msg) => {
-  const isAdmin = isSuperAdmin(msg.from.id) || isEditor(msg.from.id);
+  const userId = msg.from.id.toString();
+  const firstName = msg.from.first_name || "";
 
-  bot.sendMessage(msg.chat.id, "👋 ສະບາຍດີ! ເລືອກເມນູ:", {
+  console.log("🔍 UserID:", userId);
+  console.log("SUPER_ADMIN_ID:", SUPER_ADMIN_ID);
+  console.log("EDITOR_IDS:", EDITOR_IDS);
+
+  const isAdmin = isSuperAdmin(userId) || isEditor(userId);
+
+  bot.sendMessage(msg.chat.id, `👋 ສະບາຍດີ ${firstName}! ເລືອກເມນູ:`, {
     reply_markup: {
       keyboard: [
         [{ text: "🎲 ເລີ່ມເກມທາຍເລກ" }],
         [{ text: "🔎 ກວດຜົນຫວຍ" }],
-        ...(isAdmin ? [[{ text: "✍️ ກອກຜົນຫວຍ" }]] : []),
-        ...(isSuperAdmin(msg.from.id) ? [[{ text: "♻️ Reset Database" }]] : [])
+        ...(isAdmin ? [[{ text: "✍️ กรอกผลหวย" }]] : []),
+        ...(isSuperAdmin(userId) ? [[{ text: "♻️ รีเซ็ตข้อมูล" }]] : [])
       ],
       resize_keyboard: true
     }
   });
 });
 
-/* ================= Messages ================= */
+// ===== Game Logic =====
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
-  // 🎲 Start Game
-  if (text === "🎲 ເລີ່ມເກມທາຍເລກ") {
-    bot.sendMessage(chatId,
-      "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!\n\n" +
-      "📜 ກົດກາ:\n" +
-      "1️⃣ ທາຍໄດ້ຄັ້ງດຽວຕໍ່ຮອບ\n" +
-      "2️⃣ ພິມເລກ 2, 3 ຫຼື 4 ຕົວ\n\n" +
-      "🏆 ລາງວັນ:\n" +
-      "👑 4 ຕົວຕົງ ➝ 20,000 ເຄຣດິດ\n" +
-      "🥇 3 ຕົວບນ ➝ 5,000 ເຄຣດິດ\n" +
-      "⬆️ 2 ຕົວບນ ➝ 500 ເຄຣດິດ\n\n" +
-      "📅 ປະກາດຜົນ: 21:00 ໂມງ\n" +
-      "🕣 ປິດຮັບ: 20:25 ໂມງ\n" +
-      "═════════════════════\n" +
-      "🎯 ພິມເລກ 2, 3 ຫຼື 4 ຕົວ ເພື່ອຮ່ວມສົນຸກ"
-    );
-    return;
-  }
-
-  // 🔎 Check Result
-  if (text === "🔎 ກວດຜົນຫວຍ") {
-    const date = getLotteryDate();
-    const result = await Result.findOne({ date }).sort({ createdAt: -1 });
-
-    if (!result) {
-      bot.sendMessage(chatId,
-        `🔎 ກວດຜົນຫວຍ\n📅 ງວດປະຈຳວັນທີ: ${date}\n\n` +
-        "👑 4 ຕົວ: (ຍັງບໍ່ປະກາດ)\n" +
-        "🥇 3 ຕົວ: (ຍັງບໍ່ປະກາດ)\n" +
-        "⬆️ 2 ຕົວ: (ຍັງບໍ່ປະກາດ)\n\n" +
-        "📢 ຜົນຈະປະກາດເວລາ 21:00 ໂມງ"
-      );
-    } else {
-      bot.sendMessage(chatId,
-        `🔎 ກວດຜົນຫວຍ\n📅 ງວດປະຈຳວັນທີ: ${result.date}\n\n` +
-        `👑 4 ຕົວ: ${result.digit4}\n` +
-        `🥇 3 ຕົວ: ${result.digit3}\n` +
-        `⬆️ 2 ຕົວ: ${result.digit2}\n\n` +
-        "📢 ປະກາດຜົນແລ້ວ ✅"
-      );
-    }
-    return;
-  }
-
-  // ✍️ Input Result
-  if (text === "✍️ ກອກຜົນຫວຍ" && (isSuperAdmin(msg.from.id) || isEditor(msg.from.id))) {
-    bot.sendMessage(chatId, "✍️ ກະລຸນາພິມເລກ 4 ຕົວ (ຕົວເລກດຽວ)");
-    return;
-  }
-
-  // ♻️ Reset Database
-  if (text === "♻️ Reset Database" && isSuperAdmin(msg.from.id)) {
-    await Bet.deleteMany({});
-    await Result.deleteMany({});
-    bot.sendMessage(chatId, "♻️ ລ້າງຂໍ້ມູນແລ້ວ");
-    return;
-  }
-
-  // Save Bet
+  // Player bet
   if (/^\d{2,4}$/.test(text)) {
     const round = getLotteryDate();
-    const exist = await Bet.findOne({ userId: msg.from.id, round });
+    const exist = await Bet.findOne({ userId: chatId, round });
     if (exist) {
       bot.sendMessage(chatId, "⚠️ ທ່ານໄດ້ທາຍແລ້ວ ລໍຖ້າຮອບໃໝ່ຫຼັງປະກາດຜົນ");
       return;
@@ -149,14 +88,19 @@ bot.on('message', async (msg) => {
     bot.sendMessage(chatId, `ຢືນຢັນເລກ ${text}?`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "✅ ຢືນຢັນ", callback_data: `confirm:${text}:${msg.from.username || msg.from.first_name}` }],
+          [{ text: "✅ ຢືນຢັນ", callback_data: `confirm:${text}:${msg.from.first_name}` }],
           [{ text: "❌ ຍົກເລີກ", callback_data: "cancel" }]
         ]
       }
     });
   }
 
-  // Admin input result 4 digits
+  // Admin input result
+  if (text === "✍️ กรอกผลหวย" && (isSuperAdmin(msg.from.id) || isEditor(msg.from.id))) {
+    bot.sendMessage(chatId, "✍️ กรุณาพิมพ์เลข 4 หลัก (เลขเดียว)");
+  }
+
+  // Save result & announce
   if (/^\d{4}$/.test(text) && (isSuperAdmin(msg.from.id) || isEditor(msg.from.id))) {
     const digit4 = text;
     const digit3 = text.slice(-3);
@@ -167,30 +111,22 @@ bot.on('message', async (msg) => {
     const winners3 = await Bet.find({ number: digit3, round: date });
     const winners2 = await Bet.find({ number: digit2, round: date });
 
-    await Result.deleteMany({ date });
-    await Result.create({ date, digit4, digit3, digit2 });
-
-    const formatWinners = (arr, prize) =>
-      arr.map((w) => `🎯 ${(w.username ? '@' + w.username : w.name)} ➝ ${prize} ເຄຣດິດ`).join("\n");
-
-    let msgResult = `🎉 ຜົນຫວຍວັນທີ ${date}\n\n`;
-
-    msgResult += `👑 4 ຕົວ: ${digit4}\n`;
-    msgResult += winners4.length ? formatWinners(winners4, "20,000") : "❌ ບໍ່ມີຜູ້ຖືກ";
-    msgResult += "\n\n";
-
-    msgResult += `🥇 3 ຕົວ: ${digit3}\n`;
-    msgResult += winners3.length ? formatWinners(winners3, "5,000") : "❌ ບໍ່ມີຜູ້ຖືກ";
-    msgResult += "\n\n";
-
-    msgResult += `⬆️ 2 ຕົວ: ${digit2}\n`;
-    msgResult += winners2.length ? formatWinners(winners2, "500") : "❌ ບໍ່ມີຜູ້ຖືກ";
+    let msgResult = `🎉 ຜົນຫວຍວັນທີ ${date}\n`;
+    msgResult += `👑 4 ຕົວ: ${digit4}` + (winners4.length ? `\n🎯 ถูกรางวัล 20,000 เครดิต: ${winners4.map(w => "@" + w.name).join(", ")}` : "") + "\n";
+    msgResult += `🥇 3 ຕົວ: ${digit3}` + (winners3.length ? `\n🎯 ถูกรางวัล 5,000 เครดิต: ${winners3.map(w => "@" + w.name).join(", ")}` : "") + "\n";
+    msgResult += `⬆️ 2 ຕົວ: ${digit2}` + (winners2.length ? `\n🎯 ถูกรางวัล 500 เครดิต: ${winners2.map(w => "@" + w.name).join(", ")}` : "");
 
     bot.sendMessage(TARGET_GROUP_ID, msgResult);
   }
+
+  // Super Admin reset
+  if (text === "♻️ รีเซ็ตข้อมูล" && isSuperAdmin(msg.from.id)) {
+    await Bet.deleteMany({});
+    bot.sendMessage(chatId, "♻️ ล้างข้อมูลทั้งหมดแล้ว");
+  }
 });
 
-/* ================= Callback ================= */
+// ===== Callback confirm/cancel =====
 bot.on("callback_query", async (cb) => {
   const chatId = cb.message.chat.id;
   const data = cb.data;
@@ -198,13 +134,7 @@ bot.on("callback_query", async (cb) => {
   if (data.startsWith("confirm:")) {
     const [, number, name] = data.split(":");
     const round = getLotteryDate();
-    await Bet.create({
-      userId: cb.from.id,
-      username: cb.from.username,
-      name,
-      number,
-      round
-    });
+    await Bet.create({ userId: chatId, name, number, round });
     bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${number} ຂອງທ່ານແລ້ວ`);
   } else if (data === "cancel") {
     bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍ");
@@ -213,7 +143,7 @@ bot.on("callback_query", async (cb) => {
   bot.answerCallbackQuery(cb.id);
 });
 
-/* ================= Health check ================= */
+// ===== Health check =====
 app.get('/', (req, res) => {
   res.send('Lao Lotto Bot is running 🚀 (Webhook mode)');
 });
