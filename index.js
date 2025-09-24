@@ -1,4 +1,3 @@
-
 const express = require('express');
 const mongoose = require('mongoose');
 const TelegramBot = require('node-telegram-bot-api');
@@ -9,25 +8,26 @@ const PORT = process.env.PORT || 3000;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGO_URI = process.env.MONGO_URI;
+const TARGET_GROUP_ID = process.env.TARGET_GROUP_ID;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// MongoDB Schema
+// ===== MongoDB Schema =====
 const BetSchema = new mongoose.Schema({
   userId: String,
   number: String,
-  pos: String,
+  pos: String,   // top/bottom (ถ้าเลือก 2 หลัก)
   round: String,
   createdAt: { type: Date, default: Date.now }
 });
 const Bet = mongoose.model('Bet', BetSchema);
 
-// Connect MongoDB
+// ===== Connect MongoDB =====
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
-// หาวันหวยออกล่าสุด (จันทร์/พุธ/ศุกร์)
+// ===== หาวันหวยออกล่าสุด (จันทร์/พุธ/ศุกร์) =====
 function getLastLotteryDate() {
   const today = new Date();
   const lottoDays = [1, 3, 5]; // Mon, Wed, Fri
@@ -38,9 +38,9 @@ function getLastLotteryDate() {
   return d.toISOString().split("T")[0];
 }
 
-// ฟังก์ชันดึงผลหวย (mock — คุณปรับไปดึงจริงจาก API ได้)
+// ===== Mock ดึงผลหวย (แก้เป็น API จริงได้) =====
 async function fetchLatestResult() {
-  const d4 = "2025"; // mock
+  const d4 = "2025"; // mock result
   return {
     digit4: d4,
     digit3: d4.slice(1),
@@ -50,7 +50,7 @@ async function fetchLatestResult() {
   };
 }
 
-// ฟังก์ชันประกาศผลอัตโนมัติ
+// ===== ประกาศผลอัตโนมัติ =====
 async function announceResult() {
   const res = await fetchLatestResult();
   let msg =
@@ -62,15 +62,15 @@ async function announceResult() {
     "🥈 2 ຕົວລຸ່ມ: " + res.digit2bottom + "\n" +
     "═════════════════════\n\n" +
     "🎊 ຂອບໃຈທຸກຄົນທີ່ຮ່ວມສົນຸກ!";
-  bot.sendMessage(process.env.TARGET_GROUP_ID, msg);
+  bot.sendMessage(TARGET_GROUP_ID, msg);
 }
 
-// ตั้งเวลาให้ประกาศผลทุก จันทร์/พุธ/ศุกร์ 20:30
+// ตั้งเวลา จันทร์/พุธ/ศุกร์ 20:30
 cron.schedule("30 20 * * 1,3,5", () => {
   announceResult();
 });
 
-// คำสั่งเริ่มต้น
+// ===== คำสั่งเริ่มต้น =====
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id,
     "👋 ສະບາຍດີ! ກົດປຸ່ມດ້ານລຸ່ມເພື່ອເລີ່ມເກມ ຫຼື ກວດຜົນ.",
@@ -86,27 +86,36 @@ bot.onText(/\/start/, (msg) => {
   );
 });
 
-// ฟังข้อความ
+// ===== ฟังข้อความ =====
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
+  // เริ่มทายเลข
   if (text === "🎲 ເລີ່ມເກມທາຍເລກ") {
     await Bet.deleteMany({ round: getLastLotteryDate() }); // reset รอบใหม่
+    const roundDate = getLastLotteryDate();
     bot.sendMessage(chatId,
       "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!\n" +
-      "📌 ກົດກາ:\n" +
-      "▪️ ທາຍໄດ້ 2-4 ຕົວເລກ\n" +
-      "▪️ ຖ້າ 2 ຕົວ ຈະເລືອກ (ຂ້າງເທິງ / ຂ້າງລຸ່ມ)\n" +
-      "▪️ 1 ຄົນ ທາຍໄດ້ 1 ຄັ້ງຕໍ່ຮອບ\n" +
+      "📜 ກົດກາ:\n" +
+      "1️⃣ ທາຍໄດ້ຄັ້ງດຽວຕໍ່ຮອບ\n" +
+      "2️⃣ ພິມເລກ 2 ຫຼື 4 ຫຼັກ\n" +
+      "   - ຖ້າ 2 ຫຼັກ ຈະເລືອກ ເທິງ ຫຼື ລຸ່ມ\n" +
+      "   - ຖ້າ 3-4 ຫຼັກ ບັນທຶກທັນທີ\n\n" +
       "🏆 ລາງວັນ:\n" +
-      "▪️ 4 ຕົວຕົງ ➝ 20,000 ເຄຣດິດ\n" +
-      "▪️ 3 ຕົວທ້າຍ ➝ 5,000 ເຄຣດິດ\n" +
-      "▪️ 2 ຕົວເທິງ/ລຸ່ມ ➝ 500 ເຄຣດິດ"
+      "🎖 4 ຕົວຕົງ ➝ 20,000 ເຄຣດິດ\n" +
+      "🥇 3 ຕົວທ້າຍ ➝ 5,000 ເຄຣດິດ\n" +
+      "🥈 2 ຕົວເທິງ ➝ 500 ເຄຣດິດ\n" +
+      "🥈 2 ຕົວລຸ່ມ ➝ 500 ເຄຣດິດ\n\n" +
+      `📅 ປະກາດຜົນ: ${roundDate} ເວລາ 20:30\n` +
+      "🕣 ປິດຮັບ: 20:25\n" +
+      "═════════════════════\n" +
+      "🎯 ພິມເລກ 2-4 ຫຼັກ ເພື່ອຮ່ວມສົນຸກ"
     );
     return;
   }
 
+  // กดปุ่มตรวจผล
   if (text === "🔎 ກວດຜົນຫວຍ") {
     const res = await fetchLatestResult();
     bot.sendMessage(chatId,
@@ -120,6 +129,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
+  // ผู้ใช้พิมพ์เลข
   if (/^\d{2,4}$/.test(text)) {
     const round = getLastLotteryDate();
     const exist = await Bet.findOne({ userId: chatId, round });
@@ -132,7 +142,7 @@ bot.on('message', async (msg) => {
   }
 });
 
-// Express health check
+// ===== Express health check =====
 app.get('/', (req, res) => {
   res.send('Lao Lotto Bot is running 🚀');
 });
