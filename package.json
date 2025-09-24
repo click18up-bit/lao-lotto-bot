@@ -1,10 +1,11 @@
 {
   "name": "lao-lotto-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for Lao Lottery game with auto result announcement",
+  "description": "Telegram bot ຫວຍລາວ ສຳລັບການທາຍເລກ ແລະ ປະກາດຜົນ",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -13,5 +14,8 @@
     "mongoose": "^7.6.0",
     "node-cron": "^3.0.2",
     "node-telegram-bot-api": "^0.66.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
   }
 }

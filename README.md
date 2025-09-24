@@ -1,15 +1,12 @@
 # Lao Lotto Bot 🎲
 
-Telegram bot for Laos lottery system.
+Telegram bot ຫວຍລາວ  
+- ເລີ່ມທາຍເລກ (2, 3 ຫຼື 4 ຕົວ)  
+- ກວດຜົນຫວຍຍ້ອນຫຼັງ  
+- Admin ກອກຜົນຮາງວັນ  
+- Cron job ແຈ້ງເຕືອນ Admin 20:30 ແລະ ປະກາດຜົນ 21:00 (ຈັນ/ພຸດ/ສຸກ)
 
-## Features
-- User can bet 2-4 digit numbers
-- Confirmation before saving bets
-- Admins can input results
-- Auto check winners (2, 3, 4 digits)
-- Reset command for super admin
-
-## Deploy on Render
-- Add environment variables in Render dashboard
-- `BOT_TOKEN`, `MONGO_URI`, `TARGET_GROUP_ID`, `SUPER_ADMIN_ID`, `EDITOR_IDS`, `RENDER_EXTERNAL_URL`
-- Deploy ZIP containing `index.js`, `package.json`, `README.md`
+## ການໃຊ້ງານ
+1. ສ້າງ `.env` file (ບໍ່ຖືກ include ໃນ zip)
+2. Run: `npm install`
+3. Start: `npm start`
