@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
+require('dotenv').config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -11,58 +13,44 @@ const MONGO_URI = process.env.MONGO_URI;
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// MongoDB Schema
+// ===== MongoDB Schema =====
 const BetSchema = new mongoose.Schema({
   userId: String,
+  username: String,
   number: String,
   pos: String,
+  roundDate: String,
   createdAt: { type: Date, default: Date.now }
 });
 const Bet = mongoose.model('Bet', BetSchema);
 
-// Connect MongoDB
+// ===== Connect MongoDB =====
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
 
-// ===== Utilities =====
-function getLastLotteryDate() {
-  const now = new Date();
-  let day = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
-  let diff = 0;
-
-  if (day >= 1 && day < 3) diff = day - 1; // Mon
-  else if (day >= 3 && day < 5) diff = day - 3; // Wed
-  else if (day >= 5) diff = day - 5; // Fri
-  else if (day === 0) diff = 2; // Sunday → last Fri
-
-  const last = new Date(now);
-  last.setDate(now.getDate() - diff);
-  return last.toISOString().split("T")[0];
-}
-
-async function fetchLatestFromLaosdev() {
-  try {
-    const res = await axios.get("https://laosdev.net/");
-    const html = res.data;
-    const match = html.match(/\b(\d{4})\b/);
-    if (!match) return null;
-    const d4 = match[1];
-
-    return {
-      digit4: d4,
-      digit3: d4.slice(1),
-      digit2top: d4.slice(2),
-      digit2bottom: d4.slice(0, 2),
-      date: getLastLotteryDate()
-    };
-  } catch (e) {
-    console.error("fetch error", e);
-    return null;
+// ===== Utils =====
+function getNextLotteryDate() {
+  const days = [1, 3, 5]; // Mon, Wed, Fri
+  const today = new Date();
+  let d = new Date(today);
+  while (!days.includes(d.getDay())) {
+    d.setDate(d.getDate() + 1);
   }
+  return d.toISOString().split('T')[0];
 }
 
-// ===== Bot Logic =====
+function getLatestLotteryDate() {
+  const days = [1, 3, 5];
+  const today = new Date();
+  let d = new Date(today);
+  while (!days.includes(d.getDay())) {
+    d.setDate(d.getDate() - 1);
+  }
+  return d.toISOString().split('T')[0];
+}
+
+// ===== Telegram Bot Handlers =====
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(msg.chat.id,
     "👋 ສະບາຍດີ! ກົດປຸ່ມດ້ານລຸ່ມເພື່ອເລີ່ມເກມ ຫຼື ກວດຜົນ.",
@@ -81,42 +69,126 @@ bot.onText(/\/start/, (msg) => {
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
+  const userId = String(msg.from.id);
+  const username = msg.from.username || msg.from.first_name;
 
-  if (text.includes("ກວດຜົນ")) {
-    const result = await fetchLatestFromLaosdev();
-    if (result) {
-      bot.sendMessage(chatId,
-        "✅ ຜົນຫວຍລ່າສຸດ:\n" +
-        "🏆 4 ຕົວ: " + result.digit4 + "\n" +
-        "🥇 3 ຕົວທ້າຍ: " + result.digit3 + "\n" +
-        "🥈 2 ຕົວເທິງ: " + result.digit2top + "\n" +
-        "🥈 2 ຕົວລຸ່ມ: " + result.digit2bottom + "\n" +
-        "📅 ວັນທີ: " + result.date
-      );
-    }
-    return;
-  }
-
-  if (text.includes("ເລີ່ມເກມ")) {
+  if (text === "🎲 ເລີ່ມເກມທາຍເລກ") {
+    const nextDate = getNextLotteryDate();
+    await Bet.deleteMany({ roundDate: nextDate }); // reset รอบใหม่
     bot.sendMessage(chatId,
-      "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!\n" +
-      "📌 ກົດຕິກາ: ທາຍໄດ້ 1 ເທື່ອ/ຄົນ/ງວດ\n" +
-      "🏆 ຮາງວັນ:\n" +
-      "- 4 ຕົວຕົງ = 20,000 ເຄຣດິດ\n" +
-      "- 3 ຕົວທ້າຍ = 5,000 ເຄຣດິດ\n" +
-      "- 2 ຕົວເທິງ/ລຸ່ມ = 500 ເຄຣດິດ\n" +
-      "═════════════════════\n" +
+      "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!
+
+" +
+      "📜 ກົດກາ: ທຸກຄົນສາມາດທາຍໄດ້ 1 ເທື່ອ/ງວດ
+" +
+      "🏆 ລາງວັນ:
+" +
+      "   • 4 ຕົວຕົງ ➝ +20000 ເຄຣດິດ
+" +
+      "   • 3 ຕົວທ້າຍ ➝ +5000 ເຄຣດິດ
+" +
+      "   • 2 ຕົວເທິງ/ລຸ່ມ ➝ +500 ເຄຣດິດ
+
+" +
+      "📅 ປິດຮັບ: 20:00 ກ່ອນປະກາດຜົນ
+
+" +
       "🎯 ພິມເລກ 2-4 ຫຼັກ ເພື່ອຮ່ວມສົນຸກ"
     );
     return;
   }
+
+  if (/^\d{2}$/.test(text)) {
+    bot.sendMessage(chatId, "➡️ ເລືອກຕຳແໜ່ງ:", {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "⬆️ 2 ຕົວເທິງ", callback_data: `TOP_${text}` }],
+          [{ text: "⬇️ 2 ຕົວລຸ່ມ", callback_data: `BOTTOM_${text}` }]
+        ]
+      }
+    });
+    return;
+  }
+
+  if (/^\d{3,4}$/.test(text)) {
+    const roundDate = getNextLotteryDate();
+    const exist = await Bet.findOne({ userId, roundDate });
+    if (exist) {
+      bot.sendMessage(chatId, `⚠️ ທ່ານເຄີຍທາຍແລ້ວ: ${exist.number}`);
+    } else {
+      await Bet.create({ userId, username, number: text, roundDate });
+      bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${text} ຂອງທ່ານແລ້ວ`);
+    }
+  }
 });
 
-// Express Health Check
-app.get('/', (req, res) => {
-  res.send('Lao Lotto Bot is running 🚀');
+bot.on('callback_query', async (cb) => {
+  const chatId = cb.message.chat.id;
+  const userId = String(cb.from.id);
+  const username = cb.from.username || cb.from.first_name;
+  const [pos, number] = cb.data.split("_");
+
+  const roundDate = getNextLotteryDate();
+  const exist = await Bet.findOne({ userId, roundDate });
+  if (exist) {
+    bot.sendMessage(chatId, `⚠️ ທ່ານເຄີຍທາຍແລ້ວ: ${exist.number}`);
+  } else {
+    await Bet.create({ userId, username, number, pos, roundDate });
+    bot.sendMessage(chatId, `✅ ບັນທຶກ: ${number} (${pos === "TOP" ? "2 ຕົວເທິງ" : "2 ຕົວລຸ່ມ"})`);
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+// ===== ประกาศผล (manual trigger) =====
+async function announceResult() {
+  try {
+    const res = await axios.get("https://laosdev.net/");
+    const match = res.data.match(/\b(\d{4})\b/);
+    if (!match) return;
+
+    const d4 = match[1];
+    const result = {
+      digit4: d4,
+      digit3: d4.slice(1),
+      digit2top: d4.slice(2),
+      digit2bottom: d4.slice(0, 2),
+      date: getLatestLotteryDate()
+    };
+
+    const bets = await Bet.find({ roundDate: result.date });
+    let winners = [];
+
+    for (const b of bets) {
+      let reward = 0;
+      if (b.number === result.digit4) reward = 20000;
+      else if (b.number === result.digit3) reward = 5000;
+      else if (b.pos === "TOP" && b.number === result.digit2top) reward = 500;
+      else if (b.pos === "BOTTOM" && b.number === result.digit2bottom) reward = 500;
+
+      if (reward > 0) {
+        winners.push(`👤 ${b.username} ➝ ${b.number} ➝ +${reward} ເຄຣດິດ`);
+      }
+    }
+
+    let msg =
+      `🎉 ຜົນຫວຍລາວ ງວດ ${result.date}\n` +
+      `═════════════════════\n` +
+      `🏆 4 ຕົວ: ${result.digit4}\n` +
+      `🥇 3 ຕົວທ້າຍ: ${result.digit3}\n` +
+      `🥈 2 ຕົວເທິງ: ${result.digit2top}\n` +
+      `🥈 2 ຕົວລຸ່ມ: ${result.digit2bottom}\n` +
+      `═════════════════════\n\n`;
+
+    if (winners.length > 0) {
+      msg += "🏆 ຜູ້ຖືກລາງວັນ:\n" + winners.join("\n");
+    } else {
+      msg += "😢 ບໍ່ມີໃຜຖືກໃນງວດນີ້";
+    }
+
+    bot.sendMessage(chatId, msg);
+  } catch (e) {
+    console.error("announceResult error:", e);
+  }
+}
+
+app.get('/', (req, res) => res.send("Lao Lotto Bot 🚀"));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
