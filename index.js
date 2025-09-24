@@ -176,7 +176,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Check result
+  // Check result (latest)
   if (text === "🔎 ກວດຜົນຫວຍ") {
     const res = await fetchLatestResult();
     const winners4 = await Bet.find({ number: res.digit4, round: res.date });
@@ -185,8 +185,7 @@ bot.on('message', async (msg) => {
     const winners2bottom = await Bet.find({ number: res.digit2bottom, pos: "bottom", round: res.date });
 
     let msg =
-      "✅ ຜົນຫວຍລ່າສຸດ (" + res.date + ")\n" +
-      "═════════════════════\n" +
+      "✅ ຜົນຫວຍລ່າສຸດ:\n" +
       "👑 4 ຕົວ: " + res.digit4 +
       (winners4.length ? "\n   🎯 " + winners4.map(w => "🧑 " + w.name).join(", ") : "") + "\n" +
       "🥇 3 ຕົວທ້າຍ: " + res.digit3 +
@@ -195,7 +194,7 @@ bot.on('message', async (msg) => {
       (winners2top.length ? "\n   🎯 " + winners2top.map(w => "🧑 " + w.name).join(", ") : "") + "\n" +
       "⬇️ 2 ຕົວລຸ່ມ: " + res.digit2bottom +
       (winners2bottom.length ? "\n   🎯 " + winners2bottom.map(w => "🧑 " + w.name).join(", ") : "") + "\n" +
-      "═════════════════════";
+      "📅 ວັນທີ: " + res.date;
 
     bot.sendMessage(chatId, msg);
     return;
@@ -204,20 +203,23 @@ bot.on('message', async (msg) => {
   // Previous result
   if (text === "📅 ຜົນງວດທີ່ຜ່ານມາ") {
     const prev = await fetchPreviousResult();
-    bot.sendMessage(chatId,
-      "📅 ຜົນງວດທີ່ຜ່ານມາ:\n" +
+    let msg =
+      "📅 ຜົນງວດທີ່ຜ່ານມາ\n" +
+      "═════════════════════\n" +
       "👑 4 ຕົວ: " + prev.digit4 + "\n" +
       "🥇 3 ຕົວທ້າຍ: " + prev.digit3 + "\n" +
       "⬇️ 2 ຕົວລຸ່ມ: " + prev.digit2bottom + "\n" +
-      "📅 ວັນທີ: " + prev.date
-    );
+      "🗓 ວັນທີ: " + prev.date + "\n" +
+      "═════════════════════";
+
+    bot.sendMessage(chatId, msg);
     return;
   }
 
   // Reset by admin
   if (text === "♻️ Reset รอบ" && msg.from.id.toString() === ADMIN_ID) {
     await Bet.deleteMany({});
-    bot.sendMessage(chatId, "♻️ ล้างข้อมูลการทายทั้งหมดแล้ว (โดยแอดมิน)");
+    bot.sendMessage(chatId, "♻️ ລ້າງຂໍ້ມູນການທາຍທັງໝົດແລ້ວ (ໂດຍແອດມິນ)");
     return;
   }
 
