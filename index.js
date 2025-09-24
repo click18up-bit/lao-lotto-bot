@@ -1,4 +1,4 @@
-\
+
 /**
  * Lao Lotto Bot - Full System (Production)
  * - User: start guessing, check latest results
