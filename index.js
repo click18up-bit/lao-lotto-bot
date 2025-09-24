@@ -1,6 +1,6 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const TelegramBot = require("node-telegram-bot-api");
+const express = require('express');
+const mongoose = require('mongoose');
+const TelegramBot = require('node-telegram-bot-api');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,7 +28,7 @@ const BetSchema = new mongoose.Schema({
   round: String,
   createdAt: { type: Date, default: Date.now }
 });
-const Bet = mongoose.model("Bet", BetSchema);
+const Bet = mongoose.model('Bet', BetSchema);
 
 // Connect DB
 mongoose.connect(MONGO_URI)
@@ -62,7 +62,7 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // Player bet
-bot.on("message", async (msg) => {
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
 
@@ -130,8 +130,8 @@ bot.on("callback_query", async (cb) => {
 });
 
 // Health check
-app.get("/", (req, res) => {
-  res.send("Lao Lotto Bot is running 🚀 (Webhook mode)");
+app.get('/', (req, res) => {
+  res.send('Lao Lotto Bot is running 🚀 (Webhook mode)');
 });
 
 app.listen(PORT, () => {
