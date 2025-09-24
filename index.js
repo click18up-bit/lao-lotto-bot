@@ -52,47 +52,43 @@ function getNextLotteryDate() {
   return d.toISOString().split("T")[0];
 }
 
-/* ================= Fetch Result ================= */
+/* ================= Fetch Latest Result ================= */
 async function fetchLatestResult() {
   try {
-    const res = await axios.get("https://laosdev.net/lotto");
+    const res = await axios.get("https://laodl.com/");
     const $ = cheerio.load(res.data);
 
-    const lastDate = $(".lotto-date").text().trim() || getLastLotteryDate();
-    const digit4 = $(".lotto-4digit").text().trim() || "--";
-    const digit3 = $(".lotto-3digit").text().trim() || "--";
-    const digit2top = $(".lotto-2top").text().trim() || "--";
-    const digit2bottom = $(".lotto-2bottom").text().trim() || "--";
+    const digit4 = $(".result6").slice(0, 4).map((i, el) => $(el).text().trim()).get().join("");
+    const digit3 = $(".result6").slice(4, 7).map((i, el) => $(el).text().trim()).get().join("");
+    const digit2bottom = $(".result6").slice(7, 9).map((i, el) => $(el).text().trim()).get().join("");
+    const digit2top = digit4.slice(-2);
 
-    return { digit4, digit3, digit2top, digit2bottom, date: lastDate };
+    const date = getLastLotteryDate(); // ใช้วันหวยออกล่าสุด (จันทร์/พุธ/ศุกร์)
+
+    return { date, digit4, digit3, digit2top, digit2bottom };
   } catch (err) {
-    console.error("❌ Fetch result error:", err.message);
-    return {
-      digit4: "--",
-      digit3: "--",
-      digit2top: "--",
-      digit2bottom: "--",
-      date: getLastLotteryDate()
-    };
+    console.error("❌ fetchLatestResult error:", err.message);
+    return { date: "--", digit4: "--", digit3: "--", digit2top: "--", digit2bottom: "--" };
   }
 }
 
 /* ================= Fetch Previous Result ================= */
 async function fetchPreviousResult() {
   try {
-    const res = await axios.get("https://laosdev.net/lotto");
+    const res = await axios.get("https://laodl.com/");
     const $ = cheerio.load(res.data);
 
-    const row = $("table tbody tr").first(); // แถวแรกในตาราง
+    const row = $("table tbody tr").eq(1);
     const date = row.find("td").eq(0).text().trim();
     const digit4 = row.find("td").eq(1).text().trim();
     const digit3 = row.find("td").eq(2).text().trim();
     const digit2bottom = row.find("td").eq(3).text().trim();
+    const digit2top = digit4.slice(-2);
 
-    return { date, digit4, digit3, digit2bottom };
+    return { date, digit4, digit3, digit2top, digit2bottom };
   } catch (err) {
-    console.error("❌ Fetch previous result error:", err.message);
-    return { date: "--", digit4: "--", digit3: "--", digit2bottom: "--" };
+    console.error("❌ fetchPreviousResult error:", err.message);
+    return { date: "--", digit4: "--", digit3: "--", digit2top: "--", digit2bottom: "--" };
   }
 }
 
