@@ -23,78 +23,188 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// ===== DB =====
+// ===== DB Schema =====
 const BetSchema = new mongoose.Schema({
   userId: String,
   name: String,
   number: String,
-  pos: String,
   round: String,
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
 });
 const Bet = mongoose.model("Bet", BetSchema);
 
+// ===== Connect DB =====
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.error("❌ MongoDB Error", err));
+  .catch((err) => console.error("❌ MongoDB Error:", err));
 
-// ===== ปุ่มเมนูหลัก =====
-const mainMenu = {
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: "🎲 ເລີ່ມການທາຍເລກ", callback_data: "start_game" }],
-      [{ text: "🔍 ກວດຜົນຫວຍ", callback_data: "check_result" }]
-    ]
-  }
-};
+// ===== Helper =====
+function getLotteryDate() {
+  const today = new Date();
+  return today.toISOString().split("T")[0];
+}
 
-// ===== คำสั่งพื้นฐาน =====
+function isSuperAdmin(id) {
+  return id.toString() === SUPER_ADMIN_ID;
+}
+function isEditor(id) {
+  return EDITOR_IDS.includes(id.toString());
+}
+
+// ===== START =====
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    "👋 ສະບາຍດີ! ເລືອກເມນູດ້ານລຸ່ມເພື່ອເລີ່ມຕົ້ນ",
-    mainMenu
-  );
+  const userId = msg.from.id.toString();
+  const isAdmin = isSuperAdmin(userId) || isEditor(userId);
+
+  let keyboard = [
+    [{ text: "🎲 ເລີ່ມທາຍເລກ" }],
+    [{ text: "🔍 ກວດຜົນຫວຍ" }],
+  ];
+
+  if (isAdmin) {
+    keyboard.push([{ text: "📥 กรอกผลรางวัล" }]);
+    keyboard.push([{ text: "📢 ประกาศผลรางวัล" }]);
+  }
+  if (isSuperAdmin(userId)) {
+    keyboard.push([{ text: "🔄 รีเซ็ตโพย" }]);
+  }
+
+  bot.sendMessage(msg.chat.id, "👋 ສະບາຍດີ! ເລືອກເມນູ:", {
+    reply_markup: {
+      keyboard: keyboard,
+      resize_keyboard: true,
+    },
+  });
 });
 
-bot.onText(/\/reset/, (msg) => {
-  bot.sendMessage(msg.chat.id, "♻️ ລ້າງຂໍ້ມູນສຳເລັດ", mainMenu);
-});
+// ===== Message Handler =====
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+  const text = (msg.text || "").trim();
 
-// ===== จัดการปุ่มกด =====
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
+  // ผู้เล่นทายเลข
+  if (/^\d{2,4}$/.test(text)) {
+    const round = getLotteryDate();
+    const exist = await Bet.findOne({ userId, round });
+    if (exist) {
+      bot.sendMessage(chatId, "⚠️ ທ່ານໄດ້ທາຍແລ້ວ ກະລຸນາລໍຖ້າຮອບໃໝ່ຫຼັງປະກາດຜົນ");
+      return;
+    }
 
-  console.log("DEBUG callback:", data);
-
-  if (data === "start_game") {
-    await bot.sendMessage(
+    bot.sendMessage(
       chatId,
-      "🎲 ຮອບໃໝ່ເລີ່ມຕົ້ນ!\nກົດເລືອກຈຳນວນທີ່ຈະທາຍ",
+      `❓ ຢືນຢັນເລກ *${text}* ແມ່ນບໍ?`,
       {
+        parse_mode: "Markdown",
         reply_markup: {
-          keyboard: [["2 ຕົວ"], ["3 ຕົວ"], ["4 ຕົວ"]],
-          resize_keyboard: true,
-          one_time_keyboard: true
-        }
+          inline_keyboard: [
+            [
+              { text: "✅ ຕົກລົງ", callback_data: `confirm:${text}:${msg.from.first_name}` },
+              { text: "❌ ຍົກເລີກ", callback_data: "cancel" },
+            ],
+          ],
+        },
       }
     );
+    return;
   }
 
-  if (data === "check_result") {
-    // ตรงนี้เดี๋ยวต่อ API ผลหวยจริงก็ได้ ตอนนี้ทำ mock ก่อน
-    await bot.sendMessage(
+  // เริ่มทายเลข
+  if (text === "🎲 ເລີ່ມທາຍເລກ") {
+    bot.sendMessage(
       chatId,
-      "📢 ຜົນຫວຍລ່າສຸດ:\n🏆 4 ຕົວ: 1234\n🥈 3 ຕົວ: 234\n🥉 2 ຕົວ: 34"
+      "🎲 ເລີ່ມທາຍເລກໄດ້ແລ້ວ\nພິມເລກ 2, 3 ຫຼື 4 ຕົວ (ຕົວຢ່າງ: 12, 123, 1234)"
     );
   }
 
-  await bot.answerCallbackQuery(query.id);
+  // ตรวจผล
+  if (text === "🔍 ກວດຜົນຫວຍ") {
+    const round = getLotteryDate();
+    bot.sendMessage(
+      chatId,
+      `🔍 ຜົນຫວຍປະຈຳວັນທີ ${round}\n\n(❗ ບໍ່ມີຜົນຫາກຍັງບໍ່ປະກາດ)`
+    );
+  }
+
+  // แอดมิน: กรอกผล
+  if (text === "📥 กรอกผลรางวัล" && (isSuperAdmin(userId) || isEditor(userId))) {
+    bot.sendMessage(chatId, "✍️ กรุณาพิมพ์เลขรางวัล 4 หลัก (เช่น 1234)");
+  }
+
+  // แอดมิน: บันทึกเลข 4 ตัว
+  if (/^\d{4}$/.test(text) && (isSuperAdmin(userId) || isEditor(userId))) {
+    global.lotteryResult = text;
+    bot.sendMessage(chatId, `✅ บันทึกผลรางวัล ${text} เรียบร้อย`);
+  }
+
+  // แอดมิน: ประกาศผล
+  if (text === "📢 ประกาศผลรางวัล" && (isSuperAdmin(userId) || isEditor(userId))) {
+    if (!global.lotteryResult) {
+      bot.sendMessage(chatId, "⚠️ ยังไม่ได้กรอกผลรางวัล");
+      return;
+    }
+
+    const result4 = global.lotteryResult;
+    const result3 = result4.slice(-3);
+    const result2 = result4.slice(-2);
+    const round = getLotteryDate();
+
+    const winners4 = await Bet.find({ number: result4, round });
+    const winners3 = await Bet.find({ number: result3, round });
+    const winners2 = await Bet.find({ number: result2, round });
+
+    let msgResult = `🎉 ຜົນຫວຍປະຈຳວັນທີ ${round}\n\n`;
+
+    msgResult += `👑 4 ຕົວ: ${result4}\n`;
+    msgResult += winners4.length
+      ? `🎯 ${winners4.map((w) => "@" + w.name).join(", ")} (20,000 ເຄຣດິດ)\n\n`
+      : "❌ ບໍ່ມີຜູ້ຖືກລາງວັນ\n\n";
+
+    msgResult += `🥇 3 ຕົວ: ${result3}\n`;
+    msgResult += winners3.length
+      ? `🎯 ${winners3.map((w) => "@" + w.name).join(", ")} (5,000 ເຄຣດິດ)\n\n`
+      : "❌ ບໍ່ມີຜູ້ຖືກລາງວັນ\n\n";
+
+    msgResult += `⬆️ 2 ຕົວ: ${result2}\n`;
+    msgResult += winners2.length
+      ? `🎯 ${winners2.map((w) => "@" + w.name).join(", ")} (500 ເຄຣດິດ)\n`
+      : "❌ ບໍ່ມີຜູ້ຖືກລາງວັນ\n";
+
+    bot.sendMessage(TARGET_GROUP_ID, msgResult);
+    bot.sendMessage(chatId, "📢 ประกาศผลรางวัลเรียบร้อย");
+  }
+
+  // แอดมิน: Reset
+  if (text === "🔄 รีเซ็ตโพย" && isSuperAdmin(userId)) {
+    await Bet.deleteMany({});
+    bot.sendMessage(chatId, "♻️ ล้างโพยเรียบร้อยแล้ว");
+  }
 });
 
-// ===== RUN SERVER =====
+// ===== Callback =====
+bot.on("callback_query", async (cb) => {
+  const chatId = cb.message.chat.id;
+  const data = cb.data;
+
+  if (data.startsWith("confirm:")) {
+    const [, number, name] = data.split(":");
+    const round = getLotteryDate();
+    await Bet.create({ userId: chatId, name, number, round });
+    bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${number} ຂອງທ່ານແລ້ວ`);
+  } else if (data === "cancel") {
+    bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍ");
+  }
+
+  bot.answerCallbackQuery(cb.id);
+});
+
+// ===== Health Check =====
+app.get("/", (req, res) => {
+  res.send("🚀 Lao Lotto Bot is running (Webhook mode)");
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
