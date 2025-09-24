@@ -211,7 +211,7 @@ bot.on('message', async (msg) => {
 
     const exist = await Bet.findOne({ userId: chatId, round });
     if (exist) {
-      bot.sendMessage(chatId, "⚠️ ທ່ານເຄີຍທາຍແລ້ວໃນຮອບນີ້");
+      bot.sendMessage(chatId, "⚠️ ທ່ານໄດ້ທາຍໄປແລ້ວ ສາມາດທາຍໄດ້ອີກຄັ້ງຫຼັງຈາກປະກາດຜົນຮອບນີ້");
       return;
     }
 
