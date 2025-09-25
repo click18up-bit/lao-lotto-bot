@@ -303,7 +303,13 @@ bot.on("callback_query", async (cbq) => {
     const [, round, guess] = data.split("_");
     try {
       await Bet.create({ userId, username, name, number: guess, round });
-      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id }); // ❌ ลบปุ่ม
+
+      // ✅ ลบปุ่มออกจากข้อความเดิม (ทั้ง group และ private)
+      await bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        { chat_id: chatId, message_id: msg.message_id }
+      );
+
       bot.sendMessage(chatId, `✅ ຢືນຢັນສຳເລັດ! ບັນທຶກເລກ ${guess} ຂອງທ່ານແລ້ວ`);
     } catch (e) {
       if (e && e.code === 11000) {
@@ -316,13 +322,19 @@ bot.on("callback_query", async (cbq) => {
   }
 
   if (data.startsWith("cancel_")) {
-    await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id }); // ❌ ลบปุ่ม
+    // ✅ ลบปุ่มออกจากข้อความเดิม (ทั้ง group และ private)
+    await bot.editMessageReplyMarkup(
+      { inline_keyboard: [] },
+      { chat_id: chatId, message_id: msg.message_id }
+    );
+
     bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍເລກແລ້ວ");
     return;
   }
 
   bot.answerCallbackQuery(cbq.id);
 });
+
 
 
 /* ===== CRON Jobs ===== */
