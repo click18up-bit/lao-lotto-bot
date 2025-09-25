@@ -281,7 +281,8 @@ bot.on("message", async (msg) => {
         inline_keyboard: [
           [
             { text: "✅ ຢືນຢັນ", callback_data: `confirm_${round}_${guess}` },
-            { text: "❌ ຍົກເລກ`, callback_data: `cancel_${round}_${guess}` }
+            { text: "❌ ຍົກເລີກ", callback_data: `cancel_${round}_${guess}` }
+
           ]
         ]
       }
