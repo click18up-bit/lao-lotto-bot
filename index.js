@@ -311,14 +311,17 @@ bot.on("callback_query", async (cbq) => {
         bot.sendMessage(chatId, "❌ ເກີດຂໍ້ຜິດພາດ ລອງໃໝ່ອີກຄັ້ງ");
       }
     }
+    return; // ✅ จบการทำงาน confirm
   }
 
   if (data.startsWith("cancel_")) {
-    bot.sendMessage(chatId, "❌ ຍົກເລກການທາຍເລກແລ້ວ");
+    bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍເລກແລ້ວ");
+    return; // ✅ จบการทำงาน cancel
   }
 
   bot.answerCallbackQuery(cbq.id);
 });
+
 
 /* ===== CRON Jobs ===== */
 cron.schedule("30 20 * * 1,3,5", async () => {
