@@ -47,7 +47,7 @@ const ResultSchema = new mongoose.Schema({
   top3: String,
   top2: String,
   createdAt: { type: Date, default: Date.now },
-  isPublished: { type: Boolean, default: false } // ✅ Patch 1
+  isPublished: { type: Boolean, default: false }
 });
 ResultSchema.index({ round: 1 });
 const Result = mongoose.model("Result", ResultSchema);
@@ -113,6 +113,10 @@ bot.onText(/\/start/, (msg) => {
 });
 
 /* ===== Message Handler ===== */
+
+// state สำหรับ admin เวลากรอกผล
+const adminState = {};
+
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
@@ -139,6 +143,34 @@ bot.on("message", async (msg) => {
 🕣 ປິດຮັບ: 20:25 ໂມງ
 ═════════════════════
 🎯 ພິມເລກ 2, 3 ຫຼື 4 ຕົວ ເພື່ອຮ່ວມສົນຸກ`);
+    return;
+  }
+
+  /* Admin: enter result */
+  if (text === "📝 กรอกผลรางวัล" && isAdmin(userId)) {
+    adminState[userId] = "await_result";
+    bot.sendMessage(chatId, "✍️ กรุณาพิมพ์เลข 4 หลัก (เช่น 1234)");
+    return;
+  }
+
+  if (adminState[userId] === "await_result" && isAdmin(userId)) {
+    const rtext = text;
+    if (!/^\d{4}$/.test(rtext)) {
+      bot.sendMessage(chatId, "⚠️ ต้องเป็นเลข 4 หลัก");
+    } else {
+      const round = getRoundDate();
+      const exist = await Result.findOne({ round });
+      if (exist) {
+        bot.sendMessage(chatId, "⚠️ วันนี้มีผลแล้ว");
+      } else {
+        const top4 = rtext;
+        const top3 = rtext.slice(-3);
+        const top2 = rtext.slice(-2);
+        await Result.create({ round, top4, top3, top2, isPublished: false });
+        bot.sendMessage(chatId, `✅ บันทึกผล ${top4} (3 ตัว: ${top3}, 2 ตัว: ${top2})\n📢 จะประกาศเวลา 21:00`);
+      }
+    }
+    delete adminState[userId];
     return;
   }
 
@@ -171,30 +203,6 @@ bot.on("message", async (msg) => {
                     (winners2.length ? `🎯 ${prettyList(winners2, CREDIT2)}\n\n` : `🎯 ❌ ບໍ່ມີ\n\n`) +
                     `═════════════════════\n✨ ຂໍໃຫ້ໂຊກດີໃນຮ່ອບໜ້າ!`;
     bot.sendMessage(chatId, msgResult);
-    return;
-  }
-
-  /* Admin: enter result */
-  if (text === "📝 กรอกผลรางวัล" && isAdmin(userId)) {
-    bot.sendMessage(chatId, "✍️ กรุณาพิมพ์เลข 4 หลัก (เช่น 1234)");
-    bot.once("message", async (res) => {
-      const rtext = (res.text || "").trim();
-      if (!/^\d{4}$/.test(rtext)) {
-        bot.sendMessage(chatId, "⚠️ ต้องเป็นเลข 4 หลัก");
-        return;
-      }
-      const round = getRoundDate();
-      const exist = await Result.findOne({ round });
-      if (exist) {
-        bot.sendMessage(chatId, "⚠️ วันนี้มีผลแล้ว");
-        return;
-      }
-      const top4 = rtext;
-      const top3 = rtext.slice(-3);
-      const top2 = rtext.slice(-2);
-      await Result.create({ round, top4, top3, top2, isPublished: false });
-      bot.sendMessage(chatId, `✅ บันทึกผล ${top4} (3 ตัว: ${top3}, 2 ตัว: ${top2})\n📢 จะประกาศเวลา 21:00`);
-    });
     return;
   }
 
@@ -273,13 +281,13 @@ bot.on("message", async (msg) => {
         inline_keyboard: [
           [
             { text: "✅ ຢືນຢັນ", callback_data: `confirm_${round}_${guess}` },
-            { text: "❌ ຍົກເລີກ", callback_data: `cancel_${round}_${guess}` }
+            { text: "❌ ຍົກເລກ`, callback_data: `cancel_${round}_${guess}` }
           ]
         ]
       }
     });
   }
-}); // ✅ ปิด block bot.on("message")
+});
 
 /* ===== Inline Button Handler ===== */
 bot.on("callback_query", async (cbq) => {
@@ -305,7 +313,7 @@ bot.on("callback_query", async (cbq) => {
   }
 
   if (data.startsWith("cancel_")) {
-    bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍເລກແລ້ວ");
+    bot.sendMessage(chatId, "❌ ຍົກເລກການທາຍເລກແລ້ວ");
   }
 
   bot.answerCallbackQuery(cbq.id);
@@ -326,7 +334,7 @@ cron.schedule("0 21 * * 1,3,5", async () => {
     await bot.sendMessage(TARGET_GROUP_ID, "⚠️ ຍັງບໍ່ມີຜົນຮອບນີ້");
     return;
   }
-  result.isPublished = true; // ✅ Patch 2
+  result.isPublished = true;
   await result.save();
 
   const winners4 = await Bet.find({ number: result.top4, round, userId: { $nin: [SUPER_ADMIN_ID, ...EDITOR_IDS] } });
