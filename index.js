@@ -27,7 +27,7 @@ if (!RENDER_EXTERNAL_URL) console.warn("⚠️ RENDER_EXTERNAL_URL missing - web
 /* ===== Setup ===== */
 const app = express();
 app.use(express.json());
-const bot = new TelegramBot(BOT_TOKEN, { webHook: true });
+const bot = new TelegramBot(BOT_TOKEN);
 
 /* ===== DB Schemas ===== */
 const BetSchema = new mongoose.Schema({
@@ -56,6 +56,7 @@ const Result = mongoose.model("Result", ResultSchema);
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Error:", err));
+
 /* ===== Helpers ===== */
 function isAdmin(userId) {
   return userId == SUPER_ADMIN_ID || EDITOR_IDS.includes(String(userId));
@@ -67,8 +68,9 @@ function getRoundDate() {
   const d = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, day: "2-digit" }).format(now);
   return `${y}-${m}-${d}`;
 }
-function prettyLabel(user) {
-  return user.username ? `@${user.username}` : (user.name ? user.name : `id${user.userId}`);
+function prettyLabel(bet) {
+  return bet.username ? `@${bet.username}` :
+         (bet.name ? bet.name : `id${bet.userId}`);
 }
 function prettyList(users, suffix = "") {
   if (!users || users.length === 0) return "❌ ບໍ່ມີ";
@@ -109,6 +111,7 @@ bot.onText(/\/start/, (msg) => {
     reply_markup: mainMenuKeyboard(isAdmin(userId))
   });
 });
+
 /* ===== Message Handler ===== */
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
@@ -194,6 +197,7 @@ bot.on("message", async (msg) => {
     });
     return;
   }
+
   /* Admin: system menu */
   if (text === "📊 จัดการระบบ" && isAdmin(userId)) {
     bot.sendMessage(chatId, "📊 เมนูจัดการระบบ", { reply_markup: adminMenuKeyboard() });
@@ -259,22 +263,23 @@ bot.on("message", async (msg) => {
     return;
   }
 
- /* User sends a guess number */
-if (/^\d{2,4}$/.test(text)) {
-  const round = getRoundDate();
-  const guess = text;
+  /* User sends a guess number */
+  if (/^\d{2,4}$/.test(text)) {
+    const round = getRoundDate();
+    const guess = text;
 
-  bot.sendMessage(chatId, `🎲 ທ່ານທາຍເລກ: ${guess}\nຕ້ອງການຢືນຢັນບໍ?`, {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "✅ ຢືນຢັນ", callback_data: `confirm_${round}_${guess}` },
-          { text: "❌ ຍົກເລີກ", callback_data: `cancel_${round}_${guess}` }
+    bot.sendMessage(chatId, `🎲 ທ່ານທາຍເລກ: ${guess}\nຕ້ອງການຢືນຢັນບໍ?`, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ ຢືນຢັນ", callback_data: `confirm_${round}_${guess}` },
+            { text: "❌ ຍົກເລີກ", callback_data: `cancel_${round}_${guess}` }
+          ]
         ]
-      ]
-    }
-  });
-}
+      }
+    });
+  }
+}); // ✅ ปิด block bot.on("message")
 
 /* ===== Inline Button Handler ===== */
 bot.on("callback_query", async (cbq) => {
