@@ -303,6 +303,7 @@ bot.on("callback_query", async (cbq) => {
     const [, round, guess] = data.split("_");
     try {
       await Bet.create({ userId, username, name, number: guess, round });
+      await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id }); // ❌ ลบปุ่ม
       bot.sendMessage(chatId, `✅ ຢືນຢັນສຳເລັດ! ບັນທຶກເລກ ${guess} ຂອງທ່ານແລ້ວ`);
     } catch (e) {
       if (e && e.code === 11000) {
@@ -311,12 +312,13 @@ bot.on("callback_query", async (cbq) => {
         bot.sendMessage(chatId, "❌ ເກີດຂໍ້ຜິດພາດ ລອງໃໝ່ອີກຄັ້ງ");
       }
     }
-    return; // ✅ จบการทำงาน confirm
+    return;
   }
 
   if (data.startsWith("cancel_")) {
+    await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id }); // ❌ ลบปุ่ม
     bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍເລກແລ້ວ");
-    return; // ✅ จบการทำงาน cancel
+    return;
   }
 
   bot.answerCallbackQuery(cbq.id);
