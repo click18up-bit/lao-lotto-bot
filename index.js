@@ -259,21 +259,53 @@ bot.on("message", async (msg) => {
     return;
   }
 
-  /* User sends a guess number */
-  if (/^\d{2,4}$/.test(text)) {
-    const round = getRoundDate();
+ /* User sends a guess number */
+if (/^\d{2,4}$/.test(text)) {
+  const round = getRoundDate();
+  const guess = text;
+
+  bot.sendMessage(chatId, `🎲 ທ່ານທາຍເລກ: ${guess}\nຕ້ອງການຢືນຢັນບໍ?`, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ ຢືນຢັນ", callback_data: `confirm_${round}_${guess}` },
+          { text: "❌ ຍົກເລີກ", callback_data: `cancel_${round}_${guess}` }
+        ]
+      ]
+    }
+  });
+}
+
+/* ===== Inline Button Handler ===== */
+bot.on("callback_query", async (cbq) => {
+  const data = cbq.data;
+  const msg = cbq.message;
+  const chatId = msg.chat.id;
+  const userId = cbq.from.id.toString();
+  const username = cbq.from.username || "";
+  const name = cbq.from.first_name || "";
+
+  if (data.startsWith("confirm_")) {
+    const [, round, guess] = data.split("_");
     try {
-      await Bet.create({ userId, username, name, number: text, round });
-      bot.sendMessage(chatId, `✅ ບັນທຶກເລກ ${text} ຂອງທ່ານແລ້ວ`);
+      await Bet.create({ userId, username, name, number: guess, round });
+      bot.sendMessage(chatId, `✅ ຢືນຢັນສຳເລັດ! ບັນທຶກເລກ ${guess} ຂອງທ່ານແລ້ວ`);
     } catch (e) {
       if (e && e.code === 11000) {
-        bot.sendMessage(chatId, "⚠️ ທ່ານທາຍແລ້ວ ລໍຖ້າຮອບໃໝ່");
+        bot.sendMessage(chatId, "⚠️ ທ່ານໄດ້ທາຍແລ້ວໃນຮອບນີ້");
       } else {
-        bot.sendMessage(chatId, "❌ เกิดข้อผิดพลาด ลองใหม่อีกครั้ง");
+        bot.sendMessage(chatId, "❌ ເກີດຂໍ້ຜິດພາດ ລອງໃໝ່ອີກຄັ້ງ");
       }
     }
   }
+
+  if (data.startsWith("cancel_")) {
+    bot.sendMessage(chatId, "❌ ຍົກເລີກການທາຍເລກແລ້ວ");
+  }
+
+  bot.answerCallbackQuery(cbq.id);
 });
+
 /* ===== CRON Jobs ===== */
 cron.schedule("30 20 * * 1,3,5", async () => {
   const admins = [SUPER_ADMIN_ID, ...EDITOR_IDS].filter(Boolean);
